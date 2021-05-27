@@ -6,7 +6,7 @@ Script that deploys contents of a source folder into a destination folder on a s
 https://boto3.amazonaws.com/v1/documentation/api/latest/guide/quickstart.html
 - Init Python virtual environment (optional but recommended)
 ```
-python3 -m venv venv
+python -m venv venv
 source venv/bin/activate
 ```
 - Install Python dependencies
@@ -22,7 +22,7 @@ pip install -r requirements.txt
   - **EXCLUDES** - list of paths to exclude
 - Run the script
 ```
-python3 main.py
+python main.py
 ```
 # Other links
 - Using Paramiko for SSH and SCP for file transfer.
