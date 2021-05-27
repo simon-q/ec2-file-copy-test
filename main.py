@@ -25,7 +25,11 @@ user = 'ec2-user'
 sshKeyFilePath = '/Users/simonkvasnicka/.ssh/simonk.pem'
 
 # Root path of the directory from which all content will be put into the zip archive
-contentPath = '.'
+localSourceFolder = '.'
+
+# Remote directory where the contents will be placed
+# Existing files will be overwritten
+remoteTargetFolder = '/var/www/html/'
 
 # Paths of files and folders that should be excluded from the content
 excludes = [
@@ -33,10 +37,6 @@ excludes = [
     './.git',
     './.DS_Store'
 ]
-
-# Remote directory where the contents will be placed
-# Existing files will be overwritten
-remoteTargetFolder = '/var/www/html/'
 
 #########
 # scripts
@@ -130,7 +130,7 @@ def deploy(host):
     )
 
     # Zip all contents in the specified path except for excluded paths
-    zipFile = getZipFileForDir(contentPath)
+    zipFile = getZipFileForDir(localSourceFolder)
     # Upload zip file to home directory, by default this would be /home/ec2-user/
     with scp.SCPClient(sshClient.get_transport(), progress=progress) as scpClient:
         scpClient.putfo(zipFile, 'deployment.zip')
