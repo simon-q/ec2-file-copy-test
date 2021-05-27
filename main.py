@@ -5,41 +5,8 @@ import zipfile
 import boto3
 import paramiko
 import scp
-
-########
-# inputs
-# change these to match your environment
-
-# Name of your auto scaling group
-# Either asgName or ec2IpAddress must be present and asgName takes precedence over ec2IpAddress
-asgName = 'simon-k-deployment-test'
-
-# IP address of your instance
-# Either asgName or ec2IpAddress must be present and asgName takes precedence over ec2IpAddress
-ec2IpAddress = '3.83.36.51'
-
-# User that will be used for the SSH connection
-user = 'ec2-user'
-
-# SSH key in OpenSSH format that will be used for the SSH connection
-sshKeyFilePath = '/Users/simonkvasnicka/.ssh/simonk.pem'
-
-# Root path of the directory from which all content will be put into the zip archive
-localSourceFolder = '.'
-
-# Remote directory where the contents will be placed
-# Existing files will be overwritten
-remoteTargetFolder = '/var/www/html/'
-
-# Paths of files and folders that should be excluded from the content
-excludes = [
-    './venv',
-    './.git',
-    './.DS_Store'
-]
-
-#########
-# scripts
+import config
+import uuid
 
 # @param asgName: str
 # @return str[]
@@ -91,9 +58,10 @@ def getZipFileForDir(path):
 # @param path: str
 # @return bool
 def isExcluded(path):
-    for excludedPath in excludes:
-        if path.startswith(excludedPath):
-            return True
+    if config.EXCLUDES:
+        for excludedPath in config.EXCLUDES:
+            if path.startswith(excludedPath):
+                return True
     return False
 
 # @param path: str
@@ -115,33 +83,37 @@ def addDirToZip(path, ziph):
 # @param size: float
 # @param sent: float
 def progress(filename, size, sent):
-    sys.stdout.write("%s's progress: %.2f%%   \r" % (filename, float(sent)/float(size)*100))
+    if sent == size:
+        sys.stdout.write('done     \r')
+    else:
+        sys.stdout.write(" %.2f%%\r" % (float(sent)/float(size)*100))
 
 # @param host: str
 def deploy(host):
     # Establish SSH connection
-    sshKey = paramiko.RSAKey.from_private_key_file(sshKeyFilePath)
+    sshKey = paramiko.RSAKey.from_private_key_file(config.SSH_KEY)
     sshClient = paramiko.SSHClient()
     sshClient.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     sshClient.connect(
         hostname=host,
-        username=user,
+        username=config.SSH_USER,
         pkey=sshKey
     )
 
     # Zip all contents in the specified path except for excluded paths
-    zipFile = getZipFileForDir(localSourceFolder)
+    zipFile = getZipFileForDir(config.SOURCE)
     # Upload zip file to home directory, by default this would be /home/ec2-user/
     with scp.SCPClient(sshClient.get_transport(), progress=progress) as scpClient:
         scpClient.putfo(zipFile, 'deployment.zip')
     zipFile.close()
     
     # Unzip contents into a temp folder
-    sshClient.exec_command('unzip -u deployment.zip -d temp')
+    tempFolderName = f'temp-{uuid.uuid1()}'
+    sshClient.exec_command(f'unzip -u deployment.zip -d {tempFolderName}')
     # Copy contents from temp folder to website root folder
-    sshClient.exec_command(f'sudo cp -a temp/. {remoteTargetFolder}')
+    sshClient.exec_command(f'sudo cp -a {tempFolderName}/. {config.TARGET}')
     # Remove temp folder
-    sshClient.exec_command('sudo rm -rf temp')
+    sshClient.exec_command(f'sudo rm -rf {tempFolderName}')
     # Remove zip file
     sshClient.exec_command('sudo rm -rf deployment.zip')
 
@@ -149,10 +121,10 @@ def deploy(host):
 
 def main():
     ipAddresses = []
-    if asgName:
-        ipAddresses = getIpAddressesForInstancesInAsg(asgName)
+    if config.ASG_NAME:
+        ipAddresses = getIpAddressesForInstancesInAsg(config.ASG_NAME)
     else:
-        ipAddresses = [ec2IpAddress]
+        ipAddresses = [config.EC2_IP_ADDRESS]
     
     print('Starting deployment to these IP addresses:')
     print(ipAddresses)
